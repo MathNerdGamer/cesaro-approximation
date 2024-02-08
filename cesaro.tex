@@ -1,0 +1,323 @@
+\documentclass[11pt]{article}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{latexsym}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{epsfig}
+\usepackage{eucal}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{mathabx}
+\usepackage{subfig}
+
+
+\newcommand{\refn}[1]{\textnormal{(\ref{#1})}}
+\newcommand{\abs}[1]{\left|#1\right|}
+\newcommand{\upright}[1]{{\bf \ttfamily #1}}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{observation}[theorem]{Observation}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{claim}[theorem]{Claim}
+\newtheorem{fact}[theorem]{Fact}
+\newtheorem{assumption}[theorem]{Assumption}
+
+% 1-inch margins, from fullpage.sty by H.Partl, Version 2, Dec. 15, 1988.
+\topmargin 0pt
+\advance \topmargin by -\headheight
+\advance \topmargin by -\headsep
+\textheight 8.9in
+\oddsidemargin 0pt
+\evensidemargin \oddsidemargin
+\marginparwidth 0.5in
+\textwidth 6.5in
+
+\parindent 0in
+\parskip 1.5ex
+%\renewcommand{\baselinestretch}{1.25}
+
+\begin{document}
+
+\title{Linear Congruential Generators}
+\date{25 September, 2021}
+\maketitle
+
+\section{Linear Congruential Sequences}
+
+\begin{definition}[Linear Congruential Sequence]\label{def:lcs}
+Let $m, a, c, X_{0} \in \mathbb{Z}$ such that $0 < m,$ $0 \leq a< m,$ $0 \leq c < m,$ and $0 \leq X_{0} < m.$ We call $m$ the {\bf modulus}, $a$ the {\bf multiplier}, $c$ the {\bf increment}, and $X_{0}$ the {\bf starting value}. Starting from $X_{0},$ define a sequence
+\begin{align}
+\label{eqn:lcs}
+X_{n+1} &= \left(a X_{n} + c\right) \mod m,~n\geq 0.
+\end{align}
+
+We call the this a {\bf linear congruential sequence} (or \upright{LCS}).
+\end{definition}
+
+Consider the case where $m = 10$ and $X_{0} = a = c = 3.$ Performing the calculations reveals the following sequence:
+\begin{align*}
+X_{0} &= 3,\\
+X_{1} &= \left(3 \cdot 3 + 3\right) \mod 10 = 2,\\
+X_{2} &= \left(3 \cdot 2 + 3\right) \mod 10 = 9,\\
+X_{3} &= \left(3 \cdot 9 + 3\right) \mod 10 = 0,\\
+X_{4} &= \left(3 \cdot 0 + 3\right) \mod 10 = 3,\\
+X_{5} &= \left(3 \cdot 3 + 3\right) \mod 10 = 2,\ldots
+\end{align*}
+
+Notice that $X_{4} = X_{0},$ and so the sequence repeats. The number of terms in the repeating part of a sequence is called the {\bf period}, and so our example has a period of $4$.
+
+The period need not include $X_{0}$. Taking $m = 10$ again but with $X_{0} = 1, a = c = 2,$ we get
+\begin{align*}
+X_{0} &= 1,\\
+X_{1} &= \left(2 \cdot 1 + 2\right) \mod 10 = 4,\\
+X_{2} &= \left(2 \cdot 4 + 2\right) \mod 10 = 0,\\
+X_{3} &= \left(2 \cdot 0 + 2\right) \mod 10  = 2,\\
+X_{4} &= \left(2 \cdot 2 + 2\right) \mod 10  = 6,\\
+X_{5} &= \left(2 \cdot 6 + 2\right) \mod 10 = 4,\ldots
+\end{align*}
+
+Although the repeating doesn't occur until $X_{5},$ we say that the period is $4$ because it started over at $X_{1}.$
+
+However, this only happens when $\gcd\left(a, m\right) \neq 1.$
+\begin{theorem}\label{thm:relprime}
+Consider a \upright{LCS} with parameters $m, a, c, X_{0}$ such that $\gcd\left(a, m\right) = 1.$ Then, $X_{0}$ will always occur in the period.
+\end{theorem}
+\begin{proof}
+Suppose the period is $p$. Then, $X_{p+k} = X_{k}$ for some $0 \leq k < p$ and $X_{k}$ is the first number in the period. If $k > 0,$ we can construct $X_{k - 1}$ from $X_{k}$ by taking $X_{k - 1} = a^{-1}\left(X_{k} - c\right) \mod m.$ This construction works because $a$ has a multiplicative inverse modulo $m$ as a result of them being relatively prime. But then we can get $X_{p + k - 1} = X_{k-1}$ from $X_{p+k}$ by a similar construction, which means $X_{k}$ is not the first number in the period. Therefore, $k = 0.$
+\end{proof}
+
+With that said, our goal is to study \upright{LCS} for use as a (pseudo-)random number generator, so our next step will be choosing good parameters.
+
+\section{Choosing Parameters}
+
+\subsection{The Modulus, $m$}
+When choosing the modulus, we want $m$ to be very large. This is because the period of a \upright{LCS} can be {\it at most} $m$ due to the cyclic nature of modular arithmetic.
+
+On the other hand, for computing, we also need to worry about speed. Because of this, typical values of $m$ tend to be (near) the {\it word size} of the system it is implemented on. For example, in a $64$-bit system, $m = 2^{64} \pm 1$.
+
+Why not just $m = 2^{64}$? Because the lower-order bits tend to be less random than the higher-order bits.
+
+Choose $m$ and $d$ such that $d \mid m$. If $Y_{n} = X_{n} \mod d,$ then $Y_{n + 1} = \left(a Y_{n} + c\right) \mod d.$ In particular, if $m = 2^{e}$, then we see that the lower-order $\varepsilon$ bits will have periods of at most $2^{\varepsilon}$ -- the last $4$ bits will have a period of at most $16$, or even worse, the final bit will either be constant or strictly alternating. This doesn't happen if we work with $m = 2^{e} \pm 1$.
+
+For our implementation, we will actually take $m = 2^{31} - 1$. This is because we will be implementing \upright{MINSTD} \cite{park_miller_1988}. Note that we will be using a different multiplier than in the cited article, as the authors later advocated for the one we will use here.
+
+\subsection{The Multiplier, $a$}
+We want to maximize our period, because we want to have enough terms to suit our application. But not only that, we want enough ``randomness'' to not make the next output too obvious. For instance, taking $a = c = 1$ certainly gives a sequence of period $m$, but it's merely a counter from $0$ to $m-1$ that wraps back around to $0$ on the $m$th iteration.
+
+So, can we achieve a maximum period length of $m$ without losing the random nature of the output?
+
+\begin{theorem}[Period $m$]
+\label{thm:pm}
+The \upright{LCS} with parameters $m,a,c,X_{0}$ has a period of length $m$ iff
+\begin{enumerate}
+\item $c$ is relatively prime to $m,$
+\item $b = a - 1$ is a multiple of $p$ for all primes $p$ dividing $m,$
+\item $b$ is a multiple of $4$ if $m$ is a multiple of $4$.
+\end{enumerate}
+\end{theorem}
+
+For a proof of this theorem, check out Volume 2 of Knuth's Art of Computer Programming \cite{knuth_1997}.
+
+Since we are implementing \upright{MINSTD}, we will be choosing $a = 48271,$ $c = 0,$ and let $X_{0} \neq 0$ be defined when constructing the generator.
+
+\section{Code in Scheme}
+
+We're going to use what we've learned about what a \upright{LCS} is to implement the following algorithm in Scheme, which uses my favorite theorem from number theory -- that (colloquially) the probability that two randomly selected integers are relatively prime is $\frac{6}{\pi^{2}}.$ We use \upright{Rand} to denote an idealized\footnote{We take this random generator to be {\it actually} random and to allow for any integer value.} random number generator in specifying this algorithm.
+
+\begin{algorithm}
+\caption{Ces\`{a}ro's method for approximating $\pi$}\label{alg:cesaro}
+\begin{algorithmic}
+\Require $trials \geq 1$
+
+\State $passes \gets 0$
+
+\State $N \gets trials$
+
+\While{$N \neq 0$}
+\State $a \gets \mbox{\upright{Rand}}$
+\State $b \gets \mbox{\upright{Rand}}$
+\If{$\gcd\left(a,b\right)=1$}
+    \State $passes \gets passes + 1$
+\EndIf
+\State $N \gets N - 1$
+\EndWhile
+
+\Return $\displaystyle{\sqrt{\frac{6}{passes / trials}}}$ \Comment{This will be our approximation of $\pi.$}
+\end{algorithmic}
+\end{algorithm}
+
+Unfortunately, in the real world, we don't have immediate access to ``true'' randomness for use in our computations, so we have to approximate the randomness used in our approximation of $\pi$. This is where the \upright{LCG} comes in.
+
+A {\bf linear congruential generator} (\upright{LCG}) is just a \upright{LCS} being used as a random generator. Below is an implementation of \upright{MINSTD}, a particular \upright{LCG}, in Scheme which takes a user-provided seed.
+
+\begin{lstlisting}[language=Scheme]
+(define minstd
+  (lambda(X)
+    (lambda()
+      (define (gen n) (modulo (* n 48271) 2147483647))
+      (set! X (gen X)) X)))
+\end{lstlisting}
+
+Using this, we may instantiate the \upright{LCG} with a seed, in this case $1$.
+
+\begin{lstlisting}[language=Scheme]
+(define rand (minstd 1))
+\end{lstlisting}
+
+Now we implement \upright{Algorithm \ref{alg:cesaro}}. This application of random number generation comes from the SICP book \cite{abelson_sussman_sussman_1996}.
+
+\begin{lstlisting}[language=Scheme]
+(define (estimate-pi n)
+  (sqrt (/ 6 (monte-carlo n cesaro))))
+\end{lstlisting}
+
+And this is the Ces\`{a}ro experiment.
+
+\begin{lstlisting}[language=Scheme]
+(define (cesaro)
+  (= (gcd (rand) (rand)) 1))
+\end{lstlisting}
+
+To perform and tally up the results of the experiment is the Monte-Carlo procedure.
+
+\begin{lstlisting}[language=Scheme]
+(define (monte-carlo trials experiment)
+  (define (iter remaining passed)
+    (cond ((= remaining 0)
+           (/ passed trials))
+          ((experiment)
+           (iter (-1+ remaining)
+                 (1+ passed)))
+          (else
+            (iter (-1+ remaining)
+                       passed))))
+    (iter trials 0))
+\end{lstlisting}
+
+Finally, in order to display our results, we will use a little procedure to display a line nicely (with a newline character at the end).
+
+\begin{lstlisting}[language=Scheme]
+(define (display-line t)
+  (display t)
+  (newline)
+  t)
+\end{lstlisting}
+
+And now we estimate $\pi$ using 50000 experiments.
+
+\begin{lstlisting}[language=Scheme]
+(display-line (estimate-pi 50000))
+\end{lstlisting}
+
+We then run in \upright{mit-scheme}.
+
+\begin{verbatim}
+$ mit-scheme --quiet < cesaro.scm
+3.1421796166243956
+\end{verbatim}
+
+\newpage
+
+\section*{Appendix: Proof of the Correctness}
+
+In this section, we will justify the correctness of the method implemented in the code above.
+
+\subsection*{Number Theory}
+First of all, we need to correctly formulate the notion of selecting ``random'' integers. This is because it isn't technically correct to say that we're selecting ``random'' integers, because there is no uniform distribution on the integers. Instead, we can ``approximate'' a uniform distribution on $\mathbb{N}$ by the notion of {\it natural density}.
+
+\begin{definition}[Natural Density]
+Let $A\subseteq \mathbb{N}^{k}$ for some $k\geq 1$. Let $A\left(x\right) = \#\left\{\left(a_{1},\ldots a_{k}\right)\in A : a_{i} \leq x\right\},$ where $\#S$ denotes the number of elements in the set $S$. We say that $A$ has {\bf natural density} $\alpha$ if $$\alpha = d\left(A\right) = \lim_{x\to\infty} \frac{A\left(x\right)}{x^{k}}.$$
+\end{definition}
+
+In other words, we're not looking at a uniform distribution on $\mathbb{N}^{k},$ we're looking at the {\it limit} of uniform distributions on finite intervals in $\mathbb{N}^{k}.$ This is why, though technically inaccurate, one will hear of selecting ``random'' integers -- we're really selecting random integers in the finite intervals $I_{n}^{k} := \mathbb{N}^{k}\cap\left[1,n\right]^{k}$ and taking the limit of the resulting probabilities that those integers are in $A$ as $n\to\infty$.
+
+Will will now take a few results of number theory as given, or else we'll end up writing a book on analytic number theory which happens to have a discussion of linear congruential generators as a preface. The theorems that will be used below can be found in any good book on number theory. For instance, Apostol \cite{apostol_2011}.
+
+I assume that the reader already knows about big-$O$ notation, as well as big-$\Omega$ and big-$\Theta$, but I will go ahead and recall a notation that's not as often studied in a typical algorithms course.
+
+\begin{definition}[Asymptotic Notation]
+We write $f\left(n\right)\sim g\left(n\right)$ if $$\lim_{n\to\infty}\frac{f\left(n\right)}{g\left(n\right)} = 1.$$
+\end{definition}
+
+Note that $f\left(n\right)\sim g\left(n\right)$ automatically gives $f\left(n\right) = O\left(g\left(n\right)\right).$
+
+We'll start with a lemma that's well-known in both mathematics and computer science.
+
+\begin{lemma}[Asymptotics of the Harmonic Numbers]
+\label{lem:log}
+$$H_{n} := \sum_{1\leq d\leq n} \frac{1}{d} \sim \log\left(n\right).$$
+\end{lemma}
+\begin{proof}
+First, note that $$H_{n}\leq 1 + \int_{1}^{n}\frac{dt}{t} = 1 + \log\left(n\right).$$ On the other hand, $$\log\left(n+1\right) = \int_{1}^{n+1}\frac{dt}{t} \leq H_{n}.$$ Since we may write $\log\left(n+1\right) = \log\left(n\left(1+\frac{1}{n}\right)\right) = \log\left(n\right) + \log\left(1 + \frac{1}{n}\right),$ we have that $$1 + \frac{\log\left(1 + \frac{1}{n}\right)}{\log\left(n\right)} \leq \frac{H_{n}}{\log\left(n\right)}\leq 1 + \frac{1}{\log\left(n\right)}.$$ Taking $n\to\infty$ gives $$1 \leq \lim_{n\to\infty}\frac{H_{n}}{\log\left(n\right)} \leq 1,$$ which, by the squeeze theorem, gives $$\lim_{n\to\infty}\frac{H_{n}}{\log\left(n\right)} = 1,$$ as required.
+\end{proof}
+
+Let us now prove the following theorem.
+
+\begin{theorem}[Number of Relatively Prime $k$-tuples]
+\label{thm:relprime}
+Let $R_{k}\subseteq \mathbb{N}^{k}$ be the number of all relatively prime $k$-tuples in $\mathbb{N}^{k}.$ Then, $$R_{k}\left(x\right) = \begin{cases} \frac{x^{k}}{\zeta\left(k\right)} + O\left(x^{k-1}\right) & \mbox{if } k\geq 3 \\
+\frac{x^{2}}{\zeta\left(2\right)} + O\left(x\log x\right) &\mbox{if } k = 2\end{cases}.$$
+\end{theorem}
+
+Before we prove this theorem, let's first prove what we're really after as a corollary.
+
+\begin{corollary}[Probability of Relative Primality]
+$$d\left(R_{k}\right) = \frac{1}{\zeta\left(k\right)}.$$
+\end{corollary}
+
+\begin{proof} Theorem~\refn{thm:relprime} gives
+$$d\left(R_{k}\right) =  \lim_{x\to\infty} \frac{R_{k}\left(x\right)}{x^{k}} = \lim_{x\to\infty} \frac{1}{\zeta\left(k\right)} + o\left(1\right) = \frac{1}{\zeta\left(k\right)}.\qedhere$$
+\end{proof}
+
+The case $k=2$ is of specific importance (both to our application and in historical significance), and we will later see how to evaluate $\zeta\left(2\right).$
+
+\begin{proof}[Proof of Theorem~\ref{thm:relprime}]
+First, note that \begin{equation}\label{eqn:countrel} R_{x}\left(x\right) = \sum_{\substack{\gcd\left(a_{1},\ldots,a_{k}\right) = 1 \\ 1\leq a_{i}\leq x}} 1\end{equation} and \begin{equation}\label{eqn:floor} \left\lfloor x\right\rfloor^{k} = \sum_{\substack{1\leq a_{i}\leq x\\ \left(i = 1,2,\ldots,k\right)}} 1 = \sum_{1\leq d\leq x} \sum_{\substack{\gcd\left(a_{1},\ldots,a_{k}\right) = d \\ 1\leq a_{i}\leq x}} 1.\end{equation}
+
+If $\gcd\left(a_{1},\ldots,a_{k}\right) = d,$ then $\gcd\left(a_{1}/d,\ldots,a_{k}/d\right) = 1$, and so the inner sum of~\refn{eqn:floor} is just $R_{k}\left(x/d\right).$ Using M\"{o}bius Inversion, we turn \begin{equation}\left\lfloor x\right\rfloor^{k} = \sum_{1\leq d\leq x} R_{k}\left(x/d\right)\end{equation} into \begin{equation}\label{eqn:inverted} R_{k}\left(x\right) = \sum_{1\leq d\leq x} \mu\left(d\right) \left\lfloor x/d\right\rfloor^{k} = \sum_{1\leq d\leq x} \mu\left(d\right) \left[ x/d + O\left(1\right)\right]^{k}.\end{equation}
+
+Expanding this out yields \begin{equation}\label{eqn:expanded} R_{k}\left(x\right) = x^{k}\sum_{1\leq d\leq x} \mu\left(d\right)/d^{k} + x^{k-1} O\left(\sum_{1\leq d\leq x} \mu\left(d\right)/d^{k-1}\right) + \cdots + x O\left(\sum_{1\leq d\leq x} \mu\left(d\right)/d\right) + O\left(\sum_{1\leq d\leq x} 1\right).\end{equation}
+
+The first term, sans $x^{k},$ may be written as $$\sum_{1\leq d\leq x} \mu\left(d\right)/d^{k} = \sum_{d = 1}^{\infty} \mu\left(d\right)/d^{k} - \sum_{d = \lfloor x\rfloor + 1}^{\infty}  \mu\left(d\right)/d^{k}.$$ As any number theorist knows, $\displaystyle{\sum_{d = 1}^{\infty} \mu\left(d\right)/d^{k} = \frac{1}{\zeta\left(k\right)}}.$
+
+As for the second term in this difference, $$\abs{\sum_{d = \lfloor x\rfloor + 1}^{\infty}  \mu\left(d\right)/d^{k}}\leq \sum_{\lfloor x\rfloor + 1}^{\infty}\frac{1}{d^{k}} < \int_{\lfloor x\rfloor}^{\infty} \frac{dt}{t^{k}} = O\left(1/x^{k-1}\right).$$ Therefore, the first term of~\refn{eqn:expanded} is $x^{k}/\zeta\left(k\right) + O\left(x\right).$ The other terms of the form $$\sum_{1\leq d\leq x}\mu\left(d\right)/d^{\ell},$$ where $\ell > 1,$ are all $O\left(1\right)$. The final term is $O\left(x\right),$ since it's just a sum of $\lfloor x\rfloor$ copies of $1.$
+
+Finally, by Lemma~\ref{lem:log}, we have$$\abs{\sum_{1\leq d\leq x}  \mu\left(d\right)/d} \leq \sum_{1\leq d\leq x} \frac{1}{d} \sim \log\left(x\right).$$
+
+Combining all of these expressions together gives the desired result.
+\end{proof}
+
+\subsection*{Fourier Analysis -- Evaluating $\zeta\left(2\right)$}
+As previously, in order to not write a book on Fourier Analysis, we will keep it short and take some notions as given. Of particular importance is Parseval's identity.
+
+\begin{theorem}[Parseval's Identity]
+For a function $f\in L^{2}\left[-\pi, \pi\right],$ with Fourier coefficients $$c_{n} = \frac{1}{2\pi}\int_{-\pi}^{\pi} f\left(x\right) e^{-inx}dx,$$ we have that $$\int_{-\pi}^{\pi}\abs{f\left(x\right)}^{2} dx = 2\pi\sum_{n = -\infty}^{\infty}\abs{c_{n}}^{2}.$$
+\end{theorem}
+
+A proof of this can be found in Rudin \cite{rudin_1976}.
+
+We now evaluate $\zeta\left(2\right),$ which is a famous problem known as the {\it Basel problem}.
+
+\begin{theorem}[Basel Problem]
+$$\zeta\left(2\right) = \frac{\pi^{2}}{6}.$$
+\end{theorem}
+\begin{proof}
+Note that the function given by $f\left(x\right) = x$ is in $L^{2}\left[-\pi, \pi\right].$ Therefore, we may use Parseval's identity to get $$2\pi\sum_{n=-\infty}^{\infty}\abs{c_{n}}^2 = \int_{-\pi}^{\pi}x^{2} dx = \frac{2\pi^{3}}{3}.$$ The Fourier coefficients are $$c_{n} = \frac{1}{2\pi}\int_{-\pi}^{\pi} xe^{-inx}dx = \frac{\left(-1\right)^{n}}{n}i,$$ and so $\abs{c_{n}}^{2} = \frac{1}{n^{2}}$ for $n\neq 0$ and $0$ for $n = 0$. This means that $$2\pi\sum_{n=-\infty}^{\infty}\abs{c_{n}}^2 = 4\pi\sum_{n=1}^{\infty}\frac{1}{n^{2}} = 4\pi\zeta\left(2\right).$$
+
+Dividing both sides of $$4\pi\zeta\left(2\right) = \frac{2\pi^{3}}{3}$$ by $4\pi$ gives $$\zeta\left(2\right) = \frac{\pi^{2}}{6},$$ as required.
+\end{proof}
+
+\begin{corollary}
+\upright{Algorithm \ref{alg:cesaro}} is correct.\qed
+\end{corollary}
+
+\bibliographystyle{plain}
+\bibliography{cesaro}
+
+\end{document}
